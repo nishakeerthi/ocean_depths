@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ocean Depths — Descend Into The Unknown</title>
+
+  <!-- Google Fonts: Cormorant Garamond (cinematic display) + DM Sans (body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+
+  <!-- GSAP + ScrollTrigger via CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+
+  <style>
+    /* ─── CSS VARIABLES ─────────────────────────────────── */
+    :root {
+      --surface:    #0077b6;
+      --sunlight:   #023e8a;
+      --twilight:   #011533;
+      --midnight:   #010305;
+      --abyss:      #000000;
+      --accent:     #4fc3f7;
+      --glow:       #00e5ff;
+      --text-main:  #e8f4f8;
+      --text-muted: rgba(232,244,248,0.5);
+      --font-display: 'Cormorant Garamond', serif;
+      --font-body:    'DM Sans', sans-serif;
+    }
+
+    /* ─── RESET & BASE ──────────────────────────────────── */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--font-body);
+      color: var(--text-main);
+      background: #000;
+      overflow-x: hidden;
+      cursor: none;
+    }
+
+    /* ─── CUSTOM CURSOR ─────────────────────────────────── */
+    #cursor {
+      position: fixed; top: 0; left: 0; z-index: 9999;
+      width: 16px; height: 16px;
+      border: 1.5px solid var(--glow);
+      border-radius: 50%;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      transition: width 0.25s, height 0.25s, background 0.25s;
+      mix-blend-mode: screen;
+    }
+    #cursor.hovering { width: 36px; height: 36px; background: rgba(0,229,255,0.12); }
+
+    /* ─── SUBMARINE VIGNETTE OVERLAY ────────────────────── */
+    #sub-overlay {
+      position: fixed; inset: 0; z-index: 800;
+      pointer-events: none; opacity: 0;
+      transition: opacity 0.7s ease;
+      background: radial-gradient(ellipse 36% 36% at 50% 50%,
+        transparent 0%, rgba(0,0,0,0.5) 55%, rgba(0,0,0,0.94) 100%);
+    }
+    body.sub-mode #sub-overlay { opacity: 1; }
+
+    /* ─── PROGRESS BAR ───────────────────────────────────── */
+    #prog-bar {
+      position: fixed; top: 0; left: 0; z-index: 950;
+      height: 2px; width: 0%;
+      background: linear-gradient(90deg, #0077b6, var(--glow));
+      pointer-events: none;
+    }
+
+    /* ─── NAV DOTS ───────────────────────────────────────── */
+    #nav-dots {
+      position: fixed; left: 22px; top: 50%; z-index: 900;
+      transform: translateY(-50%);
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .ndot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: rgba(255,255,255,0.22);
+      cursor: none;
+      transition: background 0.3s, transform 0.3s, box-shadow 0.3s;
+    }
+    .ndot.active {
+      background: var(--glow);
+      transform: scale(1.7);
+      box-shadow: 0 0 10px var(--glow);
+    }
+
+    /* ─── DEPTH METER ────────────────────────────────────── */
+    #depth-meter {
+      position: fixed; right: 26px; top: 50%; z-index: 900;
+      transform: translateY(-50%);
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+    }
+    #dm-label { font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); }
+    #dm-track {
+      width: 2px; height: 150px;
+      background: rgba(255,255,255,0.1); border-radius: 2px;
+      position: relative; overflow: hidden;
+    }
+    #dm-fill {
+      position: absolute; bottom: 0; left: 0; width: 100%; height: 0%;
+      background: linear-gradient(to top, var(--glow), #0077b6);
+      transition: height 0.25s ease;
+    }
+    #dm-value { font-family: var(--font-display); font-size: 13px; color: var(--glow); white-space: nowrap; }
+
+    /* ─── SUBMARINE BUTTON ───────────────────────────────── */
+    #sub-btn {
+      position: fixed; bottom: 28px; right: 26px; z-index: 900;
+      background: rgba(4,20,30,0.75); border: 1px solid rgba(79,195,247,0.35);
+      color: var(--accent); font-family: var(--font-body);
+      font-size: 10px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase;
+      padding: 10px 18px; border-radius: 30px; cursor: none;
+      backdrop-filter: blur(12px);
+      transition: background 0.3s, border-color 0.3s, color 0.3s, box-shadow 0.3s;
+    }
+    #sub-btn:hover, #sub-btn.on {
+      background: rgba(0,229,255,0.12); border-color: var(--glow);
+      color: var(--glow); box-shadow: 0 0 22px rgba(0,229,255,0.25);
+    }
+
+    /* ─── BUBBLE CANVAS ──────────────────────────────────── */
+    #bcanvas {
+      position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    }
+
+    /* ─── SECTIONS ───────────────────────────────────────── */
+    .section {
+      position: relative; min-height: 100svh;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden; z-index: 2;
+    }
+
+    /* Depth-gradient backgrounds */
+    #sec-0 { background: linear-gradient(180deg, #0096c7 0%, #0077b6 30%, #023e8a 70%, #03245a 100%); }
+    #sec-1 { background: linear-gradient(180deg, #03245a 0%, #021d47 40%, #011433 100%); }
+    #sec-2 { background: linear-gradient(180deg, #011433 0%, #010c20 55%, #030b18 100%); }
+    #sec-3 { background: linear-gradient(180deg, #030b18 0%, #020609 60%, #010304 100%); }
+    #sec-4 { background: linear-gradient(180deg, #010304 0%, #000000 100%); }
+
+    /* ─── LIGHT RAYS (surface) ───────────────────────────── */
+    #rays {
+      position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+      width: 130%; height: 75%; pointer-events: none; z-index: 0; overflow: hidden;
+    }
+    .ray {
+      position: absolute; top: -5%; left: 50%;
+      width: 3px; border-radius: 3px; transform-origin: top center;
+      animation: rpulse 4.5s ease-in-out infinite;
+    }
+    @keyframes rpulse {
+      0%,100% { opacity: 0.05; height: 78%; }
+      50%      { opacity: 0.2;  height: 100%; }
+    }
+
+    /* ─── CONTENT WRAPPERS ───────────────────────────────── */
+    .inner {
+      position: relative; z-index: 3;
+      padding: 64px 28px;
+      max-width: 780px;
+      text-align: center;
+    }
+    .inner.L { text-align: left;  margin-left: 9vw;  margin-right: auto; }
+    .inner.R { text-align: right; margin-right: 9vw; margin-left: auto; }
+
+    /* Depth tag */
+    .dtag {
+      font-size: 10px; font-weight: 500; letter-spacing: 0.26em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: 20px;
+      display: inline-flex; align-items: center; gap: 12px;
+      opacity: 0;
+    }
+    .dtag::before, .dtag::after {
+      content: ''; width: 32px; height: 1px; background: var(--accent); opacity: 0.45;
+    }
+
+    /* Title */
+    .title {
+      font-family: var(--font-display); font-weight: 300;
+      font-size: clamp(2.8rem, 7.5vw, 6.6rem);
+      line-height: 1.06; letter-spacing: -0.01em;
+      color: #fff; margin-bottom: 26px; opacity: 0;
+    }
+    .title em { font-style: italic; color: var(--accent); font-weight: 300; }
+
+    /* Body text */
+    .body {
+      font-size: clamp(0.92rem, 1.9vw, 1.12rem); font-weight: 300; line-height: 1.8;
+      color: var(--text-muted); max-width: 520px; margin: 0 auto; opacity: 0;
+    }
+    .inner.L .body { margin: 0; }
+    .inner.R .body { margin: 0 0 0 auto; }
+
+    /* Stat cards */
+    .stats { display: flex; gap: 20px; margin-top: 36px; flex-wrap: wrap; }
+    .inner.R .stats { justify-content: flex-end; }
+    .scard {
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(79,195,247,0.18);
+      border-radius: 12px; padding: 16px 22px; backdrop-filter: blur(6px);
+      min-width: 110px; opacity: 0;
+      transition: transform 0.3s, border-color 0.3s, background 0.3s;
+    }
+    .scard:hover {
+      transform: scale(1.06);
+      border-color: rgba(0,229,255,0.45);
+      background: rgba(255,255,255,0.07);
+    }
+    .scard .n { font-family: var(--font-display); font-size: 2.1rem; font-weight: 300; color: var(--glow); line-height: 1; margin-bottom: 4px; }
+    .scard .l { font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-muted); }
+
+    /* Scroll cue */
+    .cue {
+      position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%);
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      opacity: 0; pointer-events: none; z-index: 3;
+    }
+    .cue span { font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--text-muted); }
+    .cue-line { width: 1px; height: 48px; background: linear-gradient(to bottom, transparent, var(--accent)); animation: cl 1.8s ease-in-out infinite; }
+    @keyframes cl { 0%,100% { transform: scaleY(1); opacity: 0.5; } 50% { transform: scaleY(0.55); opacity: 0.15; } }
+
+    /* Creature SVGs */
+    .creature { position: absolute; pointer-events: none; z-index: 2; opacity: 0; }
+
+    /* Abyss ambient glow */
+    .aglow {
+      position: absolute; border-radius: 50%;
+      pointer-events: none; filter: blur(90px);
+      animation: agp 5s ease-in-out infinite;
+    }
+    @keyframes agp { 0%,100% { opacity: 0.1; transform: scale(1); } 50% { opacity: 0.28; transform: scale(1.18); } }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      .inner.L, .inner.R { text-align: center; margin: 0 auto; }
+      .inner.R .stats { justify-content: center; }
+      .inner.R .body  { margin: 0 auto; }
+      #depth-meter { right: 10px; }
+      #sub-btn     { right: 10px; bottom: 18px; font-size: 9px; padding: 8px 13px; }
+      #nav-dots    { left: 8px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Custom cursor -->
+<div id="cursor"></div>
+
+<!-- Submarine vignette -->
+<div id="sub-overlay"></div>
+
+<!-- Particle canvas -->
+<canvas id="bcanvas"></canvas>
+
+<!-- Progress bar -->
+<div id="prog-bar"></div>
+
+<!-- Nav dots -->
+<nav id="nav-dots" aria-label="Section navigation">
+  <div class="ndot active" data-t="sec-0" title="Surface (0m)"></div>
+  <div class="ndot"        data-t="sec-1" title="Sunlight Zone"></div>
+  <div class="ndot"        data-t="sec-2" title="Twilight Zone"></div>
+  <div class="ndot"        data-t="sec-3" title="Midnight Zone"></div>
+  <div class="ndot"        data-t="sec-4" title="The Abyss"></div>
+</nav>
+
+<!-- Depth meter -->
+<div id="depth-meter">
+  <div id="dm-label">Depth</div>
+  <div id="dm-track"><div id="dm-fill"></div></div>
+  <div id="dm-value">0 m</div>
+</div>
+
+<!-- Submarine button -->
+<button id="sub-btn">Submarine Mode</button>
+
+
+<!-- ══ SECTION 1 — SURFACE (0 m) ══════════════════════════ -->
+<section class="section" id="sec-0">
+  <div id="rays"></div><!-- light rays injected via JS -->
+
+  <!-- Whale -->
+  <svg class="creature" id="whale"
+       style="width:clamp(180px,22vw,280px);top:10%;right:7%;color:rgba(2,62,138,0.5);"
+       viewBox="0 0 260 100" xmlns="http://www.w3.org/2000/svg">
+    <path d="M10,52 Q60,18 130,36 Q195,50 242,43 Q258,42 260,50 Q258,58 242,57 Q195,64 130,50 Q60,68 10,60 Z" fill="currentColor"/>
+    <path d="M10,55 Q0,80 20,90 Q28,76 24,58 Z" fill="currentColor"/>
+  </svg>
+
+  <!-- Small fish school -->
+  <svg class="creature" id="fish-school"
+       style="width:clamp(120px,16vw,200px);bottom:25%;left:12%;color:rgba(100,200,255,0.35);"
+       viewBox="0 0 180 60" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="20"  cy="10" rx="9" ry="4" fill="currentColor"/>
+    <polygon points="8,10 0,6 0,14"  fill="currentColor"/>
+    <ellipse cx="50"  cy="22" rx="9" ry="4" fill="currentColor"/>
+    <polygon points="38,22 30,18 30,26" fill="currentColor"/>
+    <ellipse cx="90"  cy="8"  rx="9" ry="4" fill="currentColor"/>
+    <polygon points="78,8 70,4 70,12"  fill="currentColor"/>
+    <ellipse cx="130" cy="30" rx="9" ry="4" fill="currentColor"/>
+    <polygon points="118,30 110,26 110,34" fill="currentColor"/>
+    <ellipse cx="160" cy="14" rx="9" ry="4" fill="currentColor"/>
+    <polygon points="148,14 140,10 140,18" fill="currentColor"/>
+  </svg>
+
+  <div class="inner">
+    <div class="dtag">0 m — Surface</div>
+    <h1 class="title">Where <em>Sky</em><br>Meets the<br>Unknown</h1>
+    <p class="body">Sunlight fractures into a million shards across the skin of the sea. Below the wave, another world waits — vast, ancient, and breathing.</p>
+  </div>
+
+  <div class="cue"><span>Descend</span><div class="cue-line"></div></div>
+</section>
+
+
+<!-- ══ SECTION 2 — SUNLIGHT ZONE (200 m) ═════════════════ -->
+<section class="section" id="sec-1">
+  <!-- Jellyfish -->
+  <svg class="creature" id="jelly"
+       style="width:clamp(90px,12vw,140px);top:15%;left:9%;color:rgba(79,195,247,0.26);"
+       viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="50" cy="44" rx="42" ry="38" fill="currentColor"/>
+    <line x1="28" y1="82" x2="18" y2="140" stroke="currentColor" stroke-width="1.8" opacity=".55"/>
+    <line x1="42" y1="82" x2="36" y2="140" stroke="currentColor" stroke-width="1.8" opacity=".55"/>
+    <line x1="58" y1="82" x2="64" y2="140" stroke="currentColor" stroke-width="1.8" opacity=".55"/>
+    <line x1="72" y1="82" x2="82" y2="140" stroke="currentColor" stroke-width="1.8" opacity=".55"/>
+  </svg>
+
+  <!-- Coral silhouette -->
+  <svg class="creature" id="coral"
+       style="width:clamp(110px,14vw,170px);bottom:0;right:10%;color:rgba(3,60,120,0.6);"
+       viewBox="0 0 140 140" xmlns="http://www.w3.org/2000/svg">
+    <rect x="60" y="20" width="12" height="120" rx="6" fill="currentColor"/>
+    <rect x="30" y="50" width="10" height="90"  rx="5" fill="currentColor"/>
+    <rect x="90" y="40" width="10" height="100" rx="5" fill="currentColor"/>
+    <ellipse cx="66"  cy="18"  rx="14" ry="12" fill="currentColor"/>
+    <ellipse cx="35"  cy="48"  rx="12" ry="10" fill="currentColor"/>
+    <ellipse cx="95"  cy="38"  rx="12" ry="10" fill="currentColor"/>
+    <rect x="10" y="70" width="8" height="70" rx="4" fill="currentColor"/>
+    <ellipse cx="14" cy="68" rx="10" ry="9" fill="currentColor"/>
+    <rect x="118" y="60" width="8" height="80" rx="4" fill="currentColor"/>
+    <ellipse cx="122" cy="58" rx="10" ry="9" fill="currentColor"/>
+  </svg>
+
+  <div class="inner L">
+    <div class="dtag">200 m — Sunlight Zone</div>
+    <h1 class="title">Life <em>Blooms</em><br>in Filtered<br>Blue</h1>
+    <p class="body">Here 90% of all marine life thrives — coral kingdoms, cascading shoals, and jellyfish drifting like living lanterns on a slow, celestial tide.</p>
+    <div class="stats">
+      <div class="scard"><div class="n">90%</div><div class="l">Marine Life</div></div>
+      <div class="scard"><div class="n">200m</div><div class="l">Max Depth</div></div>
+      <div class="scard"><div class="n">28°C</div><div class="l">Surface Temp</div></div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══ SECTION 3 — TWILIGHT ZONE (1,000 m) ═══════════════ -->
+<section class="section" id="sec-2">
+  <!-- Giant squid -->
+  <svg class="creature" id="squid"
+       style="width:clamp(130px,16vw,200px);top:10%;right:6%;color:rgba(80,100,160,0.28);"
+       viewBox="0 0 120 200" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="60" cy="58" rx="28" ry="52" fill="currentColor"/>
+    <path d="M32,108 Q8,162 14,200"  stroke="currentColor" stroke-width="2.2" fill="none" opacity=".6"/>
+    <path d="M42,110 Q22,172 30,200" stroke="currentColor" stroke-width="2.2" fill="none" opacity=".6"/>
+    <path d="M52,112 Q46,176 52,200" stroke="currentColor" stroke-width="2.2" fill="none" opacity=".6"/>
+    <path d="M60,113 Q60,180 60,200" stroke="currentColor" stroke-width="2.2" fill="none" opacity=".6"/>
+    <path d="M68,112 Q74,176 68,200" stroke="currentColor" stroke-width="2.2" fill="none" opacity=".6"/>
+    <path d="M78,110 Q98,172 90,200" stroke="currentColor" stroke-width="2.2" fill="none" opacity=".6"/>
+    <path d="M88,108 Q112,162 106,200" stroke="currentColor" stroke-width="2.2" fill="none" opacity=".6"/>
+    <!-- eye -->
+    <circle cx="46" cy="52" r="6" fill="rgba(0,229,255,0.4)"/>
+    <circle cx="74" cy="52" r="6" fill="rgba(0,229,255,0.4)"/>
+  </svg>
+
+  <div class="inner R">
+    <div class="dtag">1,000 m — Twilight Zone</div>
+    <h1 class="title">Light<br>Becomes a<br><em>Memory</em></h1>
+    <p class="body">Pressure mounts. The last photons scatter into indigo. Creatures here forge their own glow — tiny stars adrift in an ink-black sea.</p>
+    <div class="stats">
+      <div class="scard"><div class="n">100×</div><div class="l">Pressure</div></div>
+      <div class="scard"><div class="n">5°C</div><div class="l">Temperature</div></div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══ SECTION 4 — MIDNIGHT ZONE (4,000 m) ═══════════════ -->
+<section class="section" id="sec-3">
+  <!-- Lure glow pulse -->
+  <div style="position:absolute;top:18%;left:12%;width:120px;height:120px;
+              background:radial-gradient(circle,rgba(0,229,255,0.3) 0%,transparent 70%);
+              border-radius:50%;pointer-events:none;z-index:2;
+              animation:agp 2.8s ease-in-out infinite;"></div>
+
+  <!-- Anglerfish -->
+  <svg class="creature" id="angler"
+       style="width:clamp(140px,18vw,220px);top:10%;left:4%;color:rgba(5,15,25,0.95);"
+       viewBox="0 0 180 130" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="95" cy="75" rx="70" ry="42" fill="currentColor"/>
+    <!-- spines -->
+    <path d="M65,40 Q55,15 68,8" stroke="rgba(0,229,255,0.5)" stroke-width="1.5" fill="none"/>
+    <path d="M80,36 Q74,10 88,5"  stroke="rgba(0,229,255,0.5)" stroke-width="1.5" fill="none"/>
+    <path d="M95,34 Q93,8 106,4"  stroke="rgba(0,229,255,0.5)" stroke-width="1.5" fill="none"/>
+    <!-- lure -->
+    <circle cx="68" cy="8" r="6" fill="rgba(0,229,255,0.9)"/>
+    <!-- tail -->
+    <path d="M22,70 Q2,62 0,76 Q2,90 22,84 Z" fill="currentColor"/>
+    <!-- fins -->
+    <path d="M60,108 L48,128 L72,118 Z" fill="currentColor"/>
+    <path d="M95,110 L88,128 L108,120 Z" fill="currentColor"/>
+    <path d="M128,107 L122,124 L140,116 Z" fill="currentColor"/>
+    <!-- eyes -->
+    <circle cx="120" cy="66" r="9" fill="rgba(0,229,255,0.18)" stroke="rgba(0,229,255,0.6)" stroke-width="1.5"/>
+    <circle cx="120" cy="66" r="4" fill="rgba(0,0,0,0.8)"/>
+    <!-- teeth -->
+    <path d="M48,82 L52,94 L58,82 L64,94 L70,82 L76,94 L82,82 L88,94 L94,82 L100,94 L106,82 L112,94 L118,82"
+          stroke="rgba(0,229,255,0.4)" stroke-width="1.2" fill="none"/>
+  </svg>
+
+  <div class="inner">
+    <div class="dtag">4,000 m — Midnight Zone</div>
+    <h1 class="title">Absolute<br><em>Darkness.</em><br>Absolute Life.</h1>
+    <p class="body">No sunlight has ever reached this far. Creatures glow from within. The anglerfish dangles its lantern like a question into the void — and something always answers.</p>
+  </div>
+</section>
+
+
+<!-- ══ SECTION 5 — THE ABYSS (11,000 m+) ════════════════ -->
+<section class="section" id="sec-4">
+  <!-- Ambient glows -->
+  <div class="aglow" style="width:420px;height:420px;top:15%;left:50%;transform:translateX(-50%);
+       background:radial-gradient(circle,rgba(0,229,255,0.07) 0%,transparent 70%);"></div>
+  <div class="aglow" style="width:200px;height:200px;top:58%;left:18%;animation-delay:-2.2s;
+       background:radial-gradient(circle,rgba(0,80,180,0.14) 0%,transparent 70%);"></div>
+  <div class="aglow" style="width:160px;height:160px;top:28%;right:14%;animation-delay:-3.7s;
+       background:radial-gradient(circle,rgba(0,229,255,0.09) 0%,transparent 70%);"></div>
+
+  <!-- Hadal snailfish silhouette -->
+  <svg class="creature" id="snailfish"
+       style="width:clamp(100px,13vw,160px);bottom:22%;right:12%;color:rgba(20,40,60,0.85);"
+       viewBox="0 0 160 70" xmlns="http://www.w3.org/2000/svg">
+    <path d="M30,35 Q80,10 140,28 Q158,34 158,38 Q158,42 140,46 Q80,60 30,38 Z" fill="currentColor"/>
+    <path d="M30,36 Q5,28 2,38 Q5,48 30,42 Z" fill="currentColor"/>
+    <!-- bioluminescent spots -->
+    <circle cx="90" cy="32" r="2.5" fill="rgba(0,229,255,0.6)"/>
+    <circle cx="110" cy="36" r="2"   fill="rgba(0,229,255,0.5)"/>
+    <circle cx="70"  cy="34" r="1.8" fill="rgba(0,229,255,0.45)"/>
+    <circle cx="130" cy="33" r="1.5" fill="rgba(0,229,255,0.4)"/>
+  </svg>
+
+  <div class="inner">
+    <div class="dtag">11,000 m — The Abyss</div>
+    <h1 class="title">The <em>Deep</em><br>Was Here<br>Before Us</h1>
+    <p class="body">In the hadal zone, pressure reaches a thousand atmospheres — and life still finds a way. Some things have never been named. Some things never will be. You have reached the edge of the known world.</p>
+    <!-- Return CTA -->
+    <a href="#sec-0" id="surface-cta"
+       style="display:inline-flex;align-items:center;gap:10px;margin-top:48px;
+              font-family:var(--font-body);font-size:11px;font-weight:500;
+              letter-spacing:0.18em;text-transform:uppercase;text-decoration:none;
+              color:var(--glow);border:1px solid rgba(0,229,255,0.28);
+              padding:14px 32px;border-radius:32px;backdrop-filter:blur(10px);
+              transition:background .3s,box-shadow .3s,border-color .3s;opacity:0;">
+      ↑ Return to the Surface
+    </a>
+  </div>
+</section>
+
+
+<!-- ════════════════════════════════════════════════════════
+     JAVASCRIPT
+════════════════════════════════════════════════════════ -->
+<script>
+/* ── GSAP INIT ──────────────────────────────────────────── */
+gsap.registerPlugin(ScrollTrigger);
+
+/* ── DEPTH CONFIG ───────────────────────────────────────── */
+const SECTIONS = [
+  { id: 'sec-0', depth: 0      },
+  { id: 'sec-1', depth: 200    },
+  { id: 'sec-2', depth: 1000   },
+  { id: 'sec-3', depth: 4000   },
+  { id: 'sec-4', depth: 11000  },
+];
+const dmFill  = document.getElementById('dm-fill');
+const dmValue = document.getElementById('dm-value');
+const progBar = document.getElementById('prog-bar');
+
+/* ── SCROLL → DEPTH METER + PROGRESS + NAV DOTS ─────────── */
+window.addEventListener('scroll', () => {
+  const scrolled = window.scrollY;
+  const total    = document.body.scrollHeight - window.innerHeight;
+  const pct      = Math.min(scrolled / total, 1);
+
+  progBar.style.width   = (pct * 100) + '%';
+  dmFill.style.height   = (pct * 100) + '%';
+
+  const d = Math.round(pct * 11000);
+  dmValue.textContent   = d >= 1000 ? (d / 1000).toFixed(1) + ' km' : d + ' m';
+
+  // Active nav dot
+  document.querySelectorAll('.ndot').forEach((dot, i) => {
+    const el = document.getElementById(SECTIONS[i].id);
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (r.top <= window.innerHeight * 0.5 && r.bottom >= window.innerHeight * 0.5) {
+      document.querySelectorAll('.ndot').forEach(d => d.classList.remove('active'));
+      dot.classList.add('active');
+    }
+  });
+}, { passive: true });
+
+/* ── NAV DOT CLICKS ─────────────────────────────────────── */
+document.querySelectorAll('.ndot').forEach(dot => {
+  dot.addEventListener('click', () => {
+    document.getElementById(dot.dataset.t)?.scrollIntoView({ behavior: 'smooth' });
+  });
+});
+
+/* ── CUSTOM CURSOR ──────────────────────────────────────── */
+const cursor = document.getElementById('cursor');
+document.addEventListener('mousemove', e => {
+  cursor.style.left = e.clientX + 'px';
+  cursor.style.top  = e.clientY + 'px';
+}, { passive: true });
+document.querySelectorAll('a, button, .ndot, .scard').forEach(el => {
+  el.addEventListener('mouseenter', () => cursor.classList.add('hovering'));
+  el.addEventListener('mouseleave', () => cursor.classList.remove('hovering'));
+});
+
+/* ── SUBMARINE MODE ─────────────────────────────────────── */
+const subBtn = document.getElementById('sub-btn');
+subBtn.addEventListener('click', () => {
+  document.body.classList.toggle('sub-mode');
+  subBtn.classList.toggle('on');
+  subBtn.textContent = document.body.classList.contains('sub-mode')
+    ? '● Submarine Mode' : 'Submarine Mode';
+});
+
+/* ── CTA HOVER ──────────────────────────────────────────── */
+const cta = document.getElementById('surface-cta');
+if (cta) {
+  cta.addEventListener('mouseenter', () => {
+    cta.style.background   = 'rgba(0,229,255,0.1)';
+    cta.style.boxShadow    = '0 0 30px rgba(0,229,255,0.2)';
+    cta.style.borderColor  = 'rgba(0,229,255,0.6)';
+  });
+  cta.addEventListener('mouseleave', () => {
+    cta.style.background   = 'transparent';
+    cta.style.boxShadow    = 'none';
+    cta.style.borderColor  = 'rgba(0,229,255,0.28)';
+  });
+}
+
+/* ── LIGHT RAYS (injected) ──────────────────────────────── */
+(function() {
+  const container = document.getElementById('rays');
+  const cs = ['rgba(100,210,255,', 'rgba(160,230,255,', 'rgba(210,245,255,'];
+  for (let i = 0; i < 16; i++) {
+    const r = document.createElement('div');
+    r.className = 'ray';
+    const ang   = -42 + i * 5.6;
+    const col   = cs[i % cs.length];
+    const delay = (i * 0.31) % 4.5;
+    const w     = 1.8 + Math.random() * 2.8;
+    r.style.cssText = `
+      transform: rotate(${ang}deg) translateX(-50%);
+      background: linear-gradient(to bottom, ${col}0.25) 0%, ${col}0) 100%);
+      width: ${w}px;
+      animation-delay: -${delay}s;
+    `;
+    container.appendChild(r);
+  }
+})();
+
+/* ── GSAP: SECTION ANIMATIONS ───────────────────────────── */
+function animSec(id, align) {
+  const sel  = `#${id}`;
+  const xOff = align === 'L' ? -70 : align === 'R' ? 70 : 0;
+  const yOff = align === 'C' ? 55 : 35;
+
+  const st = { trigger: sel, start: 'top 72%', toggleActions: 'play none none reverse' };
+
+  gsap.fromTo(`${sel} .dtag`,     { opacity:0, y:22 },
+    { opacity:1, y:0, duration:0.75, ease:'power3.out', scrollTrigger: st });
+
+  gsap.fromTo(`${sel} .title`,    { opacity:0, y:yOff, x:xOff },
+    { opacity:1, y:0, x:0, duration:1.1, ease:'power3.out', delay:0.08, scrollTrigger: st });
+
+  gsap.fromTo(`${sel} .body`,     { opacity:0, y:32 },
+    { opacity:1, y:0, duration:0.95, ease:'power2.out', delay:0.18, scrollTrigger: st });
+
+  gsap.fromTo(`${sel} .scard`,    { opacity:0, y:26, scale:0.94 },
+    { opacity:1, y:0, scale:1, duration:0.7, ease:'back.out(1.6)', stagger:0.12,
+      scrollTrigger: { trigger: sel, start:'top 62%', toggleActions:'play none none reverse' }});
+
+  gsap.fromTo(`${sel} .creature`, { opacity:0, x: align === 'R' ? 50 : -50 },
+    { opacity:1, x:0, duration:1.6, ease:'power2.out', delay:0.1, scrollTrigger:
+      { trigger: sel, start:'top 85%', toggleActions:'play none none reverse' }});
+
+  gsap.fromTo(`${sel} .cue`,      { opacity:0, y:12 },
+    { opacity:1, y:0, duration:0.9, delay:1.4, ease:'power2.out',
+      scrollTrigger: { trigger: sel, start:'top 50%', end:'bottom 40%',
+                       toggleActions:'play none none reverse' }});
+}
+
+animSec('sec-0', 'C');
+animSec('sec-1', 'L');
+animSec('sec-2', 'R');
+animSec('sec-3', 'C');
+animSec('sec-4', 'C');
+
+/* Abyss: CTA + glows */
+gsap.fromTo('#sec-4 .aglow', { opacity:0, scale:0.4 },
+  { opacity:1, scale:1, duration:2.2, ease:'power2.out', stagger:0.5,
+    scrollTrigger: { trigger:'#sec-4', start:'top 85%' }});
+gsap.fromTo('#surface-cta', { opacity:0, y:20 },
+  { opacity:1, y:0, duration:0.9, delay:0.5, ease:'power2.out',
+    scrollTrigger: { trigger:'#sec-4', start:'top 55%', toggleActions:'play none none reverse' }});
+gsap.fromTo('#angler',   { opacity:0, x:-60 },
+  { opacity:1, x:0, duration:1.8, ease:'power2.out',
+    scrollTrigger: { trigger:'#sec-3', start:'top 80%', toggleActions:'play none none reverse' }});
+
+/* ── PARALLAX ────────────────────────────────────────────── */
+gsap.to('#whale',      { y:-90, ease:'none',
+  scrollTrigger: { trigger:'#sec-0', start:'top top', end:'bottom top', scrub:1.8 }});
+gsap.to('#fish-school',{ y:-60, x:30, ease:'none',
+  scrollTrigger: { trigger:'#sec-0', start:'top top', end:'bottom top', scrub:2.2 }});
+gsap.to('#jelly',      { y:-120, x:18, ease:'none',
+  scrollTrigger: { trigger:'#sec-1', start:'top bottom', end:'bottom top', scrub:2 }});
+gsap.to('#coral',      { y:-50, ease:'none',
+  scrollTrigger: { trigger:'#sec-1', start:'top bottom', end:'bottom top', scrub:1.5 }});
+gsap.to('#squid',      { y:-100, rotate:-10, ease:'none',
+  scrollTrigger: { trigger:'#sec-2', start:'top bottom', end:'bottom top', scrub:2 }});
+gsap.to('#angler',     { y:-65, x:8, ease:'none',
+  scrollTrigger: { trigger:'#sec-3', start:'top bottom', end:'bottom top', scrub:2 }});
+gsap.to('#snailfish',  { y:-50, ease:'none',
+  scrollTrigger: { trigger:'#sec-4', start:'top bottom', end:'bottom top', scrub:1.5 }});
+
+/* ── FIRST SECTION ENTRANCE (no scroll needed) ──────────── */
+gsap.from('#sec-0 .dtag',     { opacity:0, y:22, duration:1,   delay:0.5  });
+gsap.from('#sec-0 .title',    { opacity:0, y:55, duration:1.2, delay:0.78 });
+gsap.from('#sec-0 .body',     { opacity:0, y:32, duration:1,   delay:1.05 });
+gsap.from('#sec-0 .cue',      { opacity:0, y:12, duration:1,   delay:1.9  });
+gsap.from('#sec-0 .creature', { opacity:0, x:-50, duration:1.5, delay:0.9 });
+
+/* ── FLOATING BUBBLES + PARTICLES (canvas) ───────────────── */
+(function initCanvas() {
+  const canvas = document.getElementById('bcanvas');
+  const ctx    = canvas.getContext('2d');
+  let W, H;
+
+  function resize() {
+    W = canvas.width  = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resize, { passive:true });
+  resize();
+
+  /* Particle class */
+  function P() { this.init(); }
+  P.prototype.init = function() {
+    this.x     = Math.random() * W;
+    this.y     = H + Math.random() * 30;
+    this.r     = 0.6 + Math.random() * 3.8;
+    this.vy    = -(0.18 + Math.random() * 0.72);
+    this.vx    = (Math.random() - 0.5) * 0.28;
+    this.life  = 0;
+    this.maxL  = 200 + Math.random() * 320;
+    this.phase = Math.random() * Math.PI * 2;
+    this.kind  = Math.random() < 0.68 ? 'b' : 'm'; // bubble or mote
+    this.updateColor();
+  };
+  P.prototype.updateColor = function() {
+    const pct = Math.min(window.scrollY / (document.body.scrollHeight - window.innerHeight), 1);
+    const r   = Math.round(80  - 68  * pct);
+    const g   = Math.round(200 - 155 * pct);
+    const b   = Math.round(255 - 100 * pct);
+    this.col  = `${r},${g},${b}`;
+  };
+  P.prototype.update = function() {
+    this.x   += this.vx + Math.sin(this.life * 0.028 + this.phase) * 0.32;
+    this.y   += this.vy;
+    this.life++;
+    if (this.life > this.maxL || this.y < -20) this.init();
+  };
+  P.prototype.draw = function() {
+    const a = Math.min(this.life / 28, 1) *
+              Math.min((this.maxL - this.life) / 28, 1) * 0.5;
+    if (this.kind === 'b') {
+      // Bubble ring
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(${this.col},${a})`;
+      ctx.lineWidth   = 0.9;
+      ctx.stroke();
+      // Highlight
+      ctx.beginPath();
+      ctx.arc(this.x - this.r * 0.28, this.y - this.r * 0.28, this.r * 0.22, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${this.col},${a * 0.55})`;
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r * 0.38, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${this.col},${a})`;
+      ctx.fill();
+    }
+  };
+
+  // Particle pool (fewer on mobile)
+  const COUNT = window.innerWidth < 640 ? 55 : 120;
+  const pool  = Array.from({ length: COUNT }, () => {
+    const p = new P();
+    p.y     = Math.random() * H;    // scatter on load
+    p.life  = Math.random() * p.maxL;
+    return p;
+  });
+
+  let colorTimer = 0;
+  function loop() {
+    ctx.clearRect(0, 0, W, H);
+    colorTimer++;
+    pool.forEach(p => {
+      if (colorTimer % 60 === 0) p.updateColor(); // refresh color every ~1s
+      p.update();
+      p.draw();
+    });
+    requestAnimationFrame(loop);
+  }
+  loop();
+})();
+</script>
+</body>
+</html>
